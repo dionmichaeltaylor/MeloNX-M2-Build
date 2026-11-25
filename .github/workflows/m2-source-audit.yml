@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out M2 build kit
@@ -22,16 +22,16 @@ jobs:
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-      - name: Check out pinned MeloNX source snapshot
+      - name: Check out pinned official MeloNX source snapshot
         shell: bash
         run: |
           set -euo pipefail
-          git clone --filter=blob:none https://github.com/AzureDominus/melonx.git source
+          git clone --filter=blob:none https://starforgejo.dev/projects/MeloNX.git source
           cd source
           git checkout 13700519f3abc4e6d7ed8a065b118b2cc59bcd67
           test "$(git rev-parse HEAD)" = "13700519f3abc4e6d7ed8a065b118b2cc59bcd67"
           git rev-parse HEAD > ../source-commit.txt
-          git status --short > ../source-status.txt
+          git submodule status --recursive > ../source-submodules.txt
 
       - name: Run source pipeline-cache inventory
         shell: bash
@@ -46,6 +46,6 @@ jobs:
           path: |
             m2-pipeline-audit/
             source-commit.txt
-            source-status.txt
+            source-submodules.txt
           if-no-files-found: error
           retention-days: 30
