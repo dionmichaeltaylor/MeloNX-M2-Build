@@ -31,6 +31,10 @@ jobs:
           git apply ../patches/moltenvk-1.4.0-shader-cache-lock.patch
           git diff --check
           git diff --stat
+      - name: Build MoltenVK iOS external dependencies
+        run: |
+          cd moltenvk
+          ./fetchDependencies --ios
       - name: Build iOS framework for device architectures
         run: |
           cd moltenvk
