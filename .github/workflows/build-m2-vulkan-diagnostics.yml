@@ -46,6 +46,7 @@ jobs:
           find source -name '*.xcodeproj' -o -name '*.xcworkspace' 2>/dev/null | tee apple-projects.txt
           PROJECT="$(find source -name 'MeloNX.xcodeproj' -print -quit)"
           if [ -z "$PROJECT" ]; then PROJECT="$(find source -name '*.xcodeproj' -print -quit)"; fi
+          PROJECT="${PROJECT#source/}"
           test -n "$PROJECT"
           echo "IOS_PROJECT=$PROJECT" >> "$GITHUB_ENV"
           cat source/global.json
