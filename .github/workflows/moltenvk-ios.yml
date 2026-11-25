@@ -1,0 +1,54 @@
+name: MoltenVK iOS ARM64 experimental build
+on:
+  push:
+    branches: [moltenvk-ios-native-build]
+    paths:
+      - .github/workflows/moltenvk-ios.yml
+      - patches/moltenvk-1.4.0-shader-cache-lock.patch
+  workflow_dispatch:
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Checkout build configuration
+        uses: actions/checkout@v4
+      - name: Select Xcode and report environment
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          uname -a
+      - name: Fetch MoltenVK 1.4.0 source
+        run: |
+          git clone --depth 1 --branch v1.4.0 https://github.com/KhronosGroup/MoltenVK.git moltenvk
+          cd moltenvk
+          git submodule update --init --recursive
+      - name: Apply and validate experimental shader patch
+        run: |
+          cd moltenvk
+          git apply --check ../patches/moltenvk-1.4.0-shader-cache-lock.patch
+          git apply ../patches/moltenvk-1.4.0-shader-cache-lock.patch
+          git diff --check
+          git diff --stat
+      - name: Build iOS framework for device architectures
+        run: |
+          cd moltenvk
+          make ios
+      - name: Collect build products and diagnostics
+        if: always()
+        run: |
+          mkdir -p build-output
+          find moltenvk -type f \( -name 'libMoltenVK.dylib' -o -name 'MoltenVK.xcframework' -o -name 'MoltenVK.framework' \) -print -exec cp -R {} build-output/ \; || true
+          cp -R moltenvk/Package build-output/Package 2>/dev/null || true
+          cp -R moltenvk/xcodebuild.log build-output/ 2>/dev/null || true
+          xcodebuild -version > build-output/xcode-version.txt 2>&1 || true
+          find build-output -maxdepth 5 -print
+      - name: Upload experimental build and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moltenvk-1.4.0-ios-experimental
+          path: build-output/
+          if-no-files-found: warn
+          retention-days: 14
