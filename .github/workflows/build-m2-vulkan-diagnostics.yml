@@ -195,6 +195,7 @@ jobs:
           cp diagnostic-source-diff.txt build-diagnostics/ 2>/dev/null || true
           cp source-commit.txt build-diagnostics/ 2>/dev/null || true
           cp apple-projects.txt build-diagnostics/ 2>/dev/null || true
+          cp build-diagnostics/archive-bundle-audit.txt build-diagnostics/ 2>/dev/null || true
           cp "$RUNNER_TEMP/MeloNX-M2-diagnostics-app.zip" build-diagnostics/ 2>/dev/null || true
 
       - name: Upload compile validation
