@@ -2,7 +2,7 @@
 
 Date: 2026-11-25
 Target: MeloNX 2.7 / iPad Air M2 / iOS 27.x
-Status: source identity pinned in build workflow; call-site audit not yet executed against the checkout
+Status: source identity pinned; automated call-site audit is being run against the exact checkout
 
 ## Source identity and build provenance
 
