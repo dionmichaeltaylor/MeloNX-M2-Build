@@ -47,6 +47,23 @@ jobs:
           git rev-parse HEAD | tee ../source-commit.txt
           cat global.json
 
+      - name: Repair migrated LibHac NuGet feed URL
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLD='https://git.ryujinx.app/api/v4/projects/17/packages/nuget/index.json'
+          NEW='https://git.ryujinx.app/api/packages/projects/nuget/index.json'
+          if ! grep -Fq "$OLD" nuget.config; then
+            echo "Expected legacy LibHac feed URL was not found; refusing to guess."
+            exit 1
+          fi
+          sed -i '' "s#$OLD#$NEW#g" nuget.config
+          echo "=== Effective LibHac feed ==="
+          grep -n 'LibHacAlpha' nuget.config
+          curl --fail --silent --show-error --location "$NEW" -o "$RUNNER_TEMP/libhac-nuget-index.json"
+          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("LibHac feed index is valid JSON; resources:", len(d.get("resources", [])))' "$RUNNER_TEMP/libhac-nuget-index.json"
+
       - name: Install repository-pinned .NET SDK
         uses: actions/setup-dotnet@v4
         with:
