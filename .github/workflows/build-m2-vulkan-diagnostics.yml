@@ -64,6 +64,32 @@ jobs:
         with:
           global-json-file: source/global.json
 
+      # The pinned Ryujinx.LibHac prerelease has moved between package feeds.
+      - name: Select pinned LibHac feed
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/.*Include="Ryujinx.LibHac" Version="\([^"]*\)".*/\1/p' Directory.Packages.props)"
+          test -n "$version"
+          for feed in \
+            "https://starforgejo.dev/api/packages/Ryulynx/nuget" \
+            "https://git.ryujinx.app/api/packages/projects/nuget" \
+            "https://git.ryujinx.app/api/packages/ryubing/nuget"
+          do
+            if curl -fsSL -m 30 "$feed/registration/ryujinx.libhac/index.json" | grep -q "\"$version\""; then
+              echo "Using $feed for Ryujinx.LibHac $version"
+              sed -i '' "s#<add key=\"LibHacAlpha\" value=\"[^\"]*\"#<add key=\"LibHacAlpha\" value=\"$feed/index.json\"#" nuget.config
+              exit 0
+            fi
+          done
+          echo "Building Ryujinx.LibHac $version from pinned source"
+          git clone -q https://starforgejo.dev/archive/LibHac_Ryubing.git "$RUNNER_TEMP/libhac"
+          git -C "$RUNNER_TEMP/libhac" checkout -q 23e402ebb6dedc517e34a98a033078dc0f6fd478
+          (cd "$RUNNER_TEMP/libhac" && ./build.sh Codegen)
+          test -f "$RUNNER_TEMP/libhac/src/LibHac/Common/ResultNameResolver.Generated.cs"
+          dotnet pack "$RUNNER_TEMP/libhac/src/LibHac/LibHac.csproj" -c Release -p:Version="$version" -o "$RUNNER_TEMP/libhac-feed"
+          sed -i '' "s#<add key=\"LibHacAlpha\" value=\"[^\"]*\"#<add key=\"LibHacAlpha\" value=\"$RUNNER_TEMP/libhac-feed\"#" nuget.config
       - name: Install pinned .NET SDK and iOS workload
         working-directory: source
         shell: bash
