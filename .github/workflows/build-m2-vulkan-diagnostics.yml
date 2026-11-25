@@ -62,7 +62,13 @@ jobs:
 
       - name: Resolve Xcode packages
         working-directory: source
+        shell: bash
         run: |
+          set -euo pipefail
+          DOTNET_BIN="$(command -v dotnet)"
+          echo "dotnet binary: $DOTNET_BIN"
+          echo "$(dirname "$DOTNET_BIN")" >> "$GITHUB_PATH"
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
           xcodebuild -list -project "$IOS_PROJECT"
           xcodebuild -resolvePackageDependencies -project "$IOS_PROJECT"
 
@@ -70,7 +76,13 @@ jobs:
         working-directory: source
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
+          DOTNET_BIN="$(command -v dotnet)"
+          export PATH="$(dirname "$DOTNET_BIN"):/usr/local/bin:$PATH"
+          export DOTNET_ROOT="$(dirname "$DOTNET_BIN")"
+          echo "Build PATH=$PATH"
+          command -v dotnet
+          dotnet --version
           xcodebuild archive \
             -project "$IOS_PROJECT" \
             -scheme MeloNX \
