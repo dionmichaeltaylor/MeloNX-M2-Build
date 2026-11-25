@@ -136,6 +136,40 @@ jobs:
             DEVELOPMENT_TEAM="" \
             2>&1 | tee "$RUNNER_TEMP/melonx-m2-diagnostics-xcodebuild.log"
 
+      - name: Inspect archived app and extension identifiers
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MeloNX-M2-diagnostics.xcarchive/Products/Applications/MeloNX.app"
+          EXT="$APP/PlugIns/MeloNXRamDonor.appex"
+          test -d "$APP"
+          test -d "$EXT"
+          mkdir -p build-diagnostics
+          {
+            echo "APP_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+            echo "APP_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+            echo "APP_MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" 2>/dev/null || true)"
+            echo "EXT_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$EXT/Info.plist")"
+            echo "EXT_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$EXT/Info.plist")"
+            echo "EXTENSION_POINT=$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$EXT/Info.plist" 2>/dev/null || true)"
+            echo "APP_ENTITLEMENTS:"
+            codesign -d --entitlements :- "$APP" 2>&1 || true
+            echo "EXT_ENTITLEMENTS:"
+            codesign -d --entitlements :- "$EXT" 2>&1 || true
+            echo "EMBEDDED_FRAMEWORKS:"
+            find "$APP/Frameworks" -maxdepth 1 -mindepth 1 -type d -print 2>/dev/null | sort || true
+          } | tee build-diagnostics/archive-bundle-audit.txt
+
+      - name: Preserve archived app for packaging audit
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$RUNNER_TEMP/MeloNX-M2-diagnostics.xcarchive/Products/Applications/MeloNX.app" \
+            "$RUNNER_TEMP/MeloNX-M2-diagnostics-app.zip"
+
       - name: Preserve build diagnostics
         if: always()
         shell: bash
@@ -145,6 +179,7 @@ jobs:
           cp diagnostic-source-diff.txt build-diagnostics/ 2>/dev/null || true
           cp source-commit.txt build-diagnostics/ 2>/dev/null || true
           cp apple-projects.txt build-diagnostics/ 2>/dev/null || true
+          cp "$RUNNER_TEMP/MeloNX-M2-diagnostics-app.zip" build-diagnostics/ 2>/dev/null || true
 
       - name: Upload compile validation
         if: always()
