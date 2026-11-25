@@ -48,7 +48,8 @@ jobs:
           mkdir -p build-output/replacement
           cp "$FRAMEWORK" build-output/replacement/libMoltenVK.dylib
           file build-output/replacement/libMoltenVK.dylib
-          xcrun --sdk iphoneos nm -gU build-output/replacement/libMoltenVK.dylib | head -20
+          xcrun --sdk iphoneos nm -gU build-output/replacement/libMoltenVK.dylib > build-output/replacement/exports.txt
+          sed -n '1,20p' build-output/replacement/exports.txt
           xcrun --sdk iphoneos dyld_info -dependents build-output/replacement/libMoltenVK.dylib
       - name: Collect build products and diagnostics
         if: always()
