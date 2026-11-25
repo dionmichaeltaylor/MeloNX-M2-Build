@@ -63,7 +63,7 @@ jobs:
           echo "=== Package source references and mappings ==="
           grep -RniE 'LibHacAlpha|Ryujinx.LibHac|packageSourceMapping|packageSource key|api/packages|api/v4/projects' --include='nuget.config' --include='NuGet.Config' --include='*.csproj' . || true
           echo "=== iOS projects and build targets ==="
-          find src -type f \\( -name '*.csproj' -o -name '*.xcodeproj' -o -name '*.xcworkspace' \\) | sort | head -200
+          find src -type f \( -name '*.csproj' -o -name '*.xcodeproj' -o -name '*.xcworkspace' \) | sort | head -200
           echo "=== SDK pin ==="
           cat global.json
 
