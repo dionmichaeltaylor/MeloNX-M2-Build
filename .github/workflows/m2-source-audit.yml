@@ -40,6 +40,15 @@ jobs:
           bash scripts/audit-pipeline-cache.sh source m2-pipeline-audit
           echo '=== AUDIT REPORT FILES ==='
           find m2-pipeline-audit -maxdepth 1 -type f -print -exec sh -c 'echo "--- $1 ---"; sed -n "1,240p" "$1"' _ {} \;
+          echo '=== PIPELINE CACHE MANAGER (130-320) ==='
+          sed -n '130,320p' source/src/Ryujinx.Graphics.Vulkan/PipelineCacheManager.cs
+          echo '=== BACKGROUND SCHEDULER ==='
+          sed -n '1,180p' source/src/Ryujinx.Graphics.Vulkan/BackgroundCompilationScheduler.cs
+          echo '=== PIPELINE COMPILE SCHEDULING (680-790) ==='
+          sed -n '680,790p' source/src/Ryujinx.Graphics.Vulkan/ShaderCollection.cs
+          echo '=== RENDERER CACHE INITIALIZATION / SHUTDOWN ==='
+          sed -n '530,590p' source/src/Ryujinx.Graphics.Vulkan/VulkanRenderer.cs
+          sed -n '1110,1170p' source/src/Ryujinx.Graphics.Vulkan/VulkanRenderer.cs
 
       - name: Upload source audit
         uses: actions/upload-artifact@v4
