@@ -1,9 +1,11 @@
 from pathlib import Path
 
-path = Path("src/MeloNX/MeloNX/App/UI/MeloNXApp.swift")
-source = path.read_text()
+app_path = Path("src/MeloNX/MeloNX/App/UI/MeloNXApp.swift")
+view_path = Path("src/MeloNX/MeloNX/App/UI/AppModeRouterView.swift")
+app = app_path.read_text()
+view = view_path.read_text()
 
-old = """    static func initializeEmulatorRuntime(environment: [EnvironmentVariable]) {
+old_runtime = """    static func initializeEmulatorRuntime(environment: [EnvironmentVariable]) {
         runtimeInitializationLock.lock()
         defer { runtimeInitializationLock.unlock() }
 
@@ -44,7 +46,7 @@ old = """    static func initializeEmulatorRuntime(environment: [EnvironmentVari
     }
 """
 
-replacement = """    static func initializeEmulatorRuntime(
+new_runtime = """    static func initializeEmulatorRuntime(
         environment: [EnvironmentVariable],
         onStage: ((String) -> Void)? = nil
     ) {
@@ -67,26 +69,26 @@ replacement = """    static func initializeEmulatorRuntime(
         environment.forEach { env in
             env.set()
         }
-        
+
         EnvironmentVariable(string: "HAS_TXM", value: ProcessInfo.processInfo.hasTXM && !ProcessInfo.processInfo.isiOSAppOnMac ? "1" : "0").set()
 
         onStage?("Initializing native Ryujinx bridge")
         RyujinxBridge.initialize()
-        
+
         let cool: Bool
         if #available(iOS 19, *) {
             if ProcessInfo.processInfo.hasTXM {
                 NativeSettingsManager.shared.setting(forKey: "DUAL_MAPPED_JIT", default: true).value = true
             }
-            
+
             cool = NativeSettingsManager.shared.setting(forKey: "DUAL_MAPPED_JIT", default: true).value
         } else {
             cool = NativeSettingsManager.shared.setting(forKey: "DUAL_MAPPED_JIT", default: false).value
         }
-        
+
         onStage?("Initializing JIT breakpoint handler")
         JIT26BreakpointHandler()
-        
+
         if cool {
             onStage?("Initializing dual-mapped JIT")
             EnvironmentVariable(string: "DUAL_MAPPED_JIT", value: "1").set()
@@ -96,15 +98,10 @@ replacement = """    static func initializeEmulatorRuntime(
             EnvironmentVariable(string: "DUAL_MAPPED_JIT", value: "0").set()
             onStage?("Dual-mapped JIT is disabled")
         }
-        
+
         onStage?("Native runtime initialization finished")
     }
 """
-
-if old not in source:
-    raise SystemExit("Could not locate exact runtime initialization function; refusing to patch.")
-
-source = source.replace(old, replacement)
 
 old_view = """struct EmulatorRuntimeView<Content: View>: View {
     private let content: Content
@@ -149,6 +146,7 @@ new_view = """struct EmulatorRuntimeView<Content: View>: View {
             }
         }
         .task {
+            let environment = self.environment
             let stageBinding = $startupStage
             await Task.detached(priority: .userInitiated) {
                 MeloNXApp.initializeEmulatorRuntime(environment: environment) { stage in
@@ -164,8 +162,11 @@ new_view = """struct EmulatorRuntimeView<Content: View>: View {
 }
 """
 
-if old_view not in source:
-    raise SystemExit("Could not locate exact EmulatorRuntimeView; refusing to patch.")
+if old_runtime not in app:
+    raise SystemExit("Could not locate exact initializeEmulatorRuntime function in MeloNXApp.swift.")
+if old_view not in view:
+    raise SystemExit("Could not locate EmulatorRuntimeView in AppModeRouterView.swift.")
 
-path.write_text(source.replace(old_view, new_view))
-print("Applied staged startup diagnostics to MeloNXApp.swift")
+app_path.write_text(app.replace(old_runtime, new_runtime, 1))
+view_path.write_text(view.replace(old_view, new_view, 1))
+print("Applied staged startup diagnostics to MeloNXApp.swift and AppModeRouterView.swift")
