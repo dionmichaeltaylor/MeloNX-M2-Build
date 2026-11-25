@@ -71,24 +71,24 @@ jobs:
         working-directory: source
         shell: bash
         run: |
-          set -euo pipefail
-          FEED="$(sed -n 's/.*key="LibHacAlpha" value="\\([^"]*\\)".*/\\1/p' nuget.config)"
-          VERSION="$(sed -n 's/.*PackageVersion Include="Ryujinx.LibHac" Version="\\([^"]*\\)".*/\\1/p' Directory.Packages.props)"
-          test -n "$FEED"
-          test -n "$VERSION"
-          echo "LibHac feed: $FEED"
-          echo "Required package version: $VERSION"
+          set -u
+          FEED="$(awk -F '"' '/key="LibHacAlpha"/ {print $4; exit}' nuget.config)"
+          echo "LibHac feed: ${FEED:-NOT FOUND}"
+          echo "=== Package version references ==="
+          grep -Rni 'Ryujinx.LibHac' Directory.Packages.props src --include='*.props' --include='*.csproj' | head -40 || true
+          if [ -z "$FEED" ]; then
+            echo "Could not parse configured feed URL"
+            exit 0
+          fi
           echo "=== Feed index HTTP response ==="
-          curl --silent --show-error --location --max-time 30 --output "$RUNNER_TEMP/libhac-feed-index.json" --write-out 'HTTP %{http_code} | content-type %{content_type} | final-url %{url_effective}\\n' "$FEED"
-          head -c 12000 "$RUNNER_TEMP/libhac-feed-index.json" || true
+          curl --silent --show-error --location --max-time 30 --output "$RUNNER_TEMP/libhac-feed-index.json" --write-out 'HTTP %{http_code} | content-type %{content_type} | final-url %{url_effective}\\n' "$FEED" || true
+          head -c 12000 "$RUNNER_TEMP/libhac-feed-index.json" 2>/dev/null || true
           echo
           echo "=== NuGet v3 package query ==="
           QUERY_URL="${FEED%index.json}query?q=Ryujinx.LibHac&prerelease=true&take=20"
-          curl --silent --show-error --location --max-time 30 --output "$RUNNER_TEMP/libhac-query.json" --write-out 'HTTP %{http_code} | content-type %{content_type} | final-url %{url_effective}\\n' "$QUERY_URL"
-          head -c 12000 "$RUNNER_TEMP/libhac-query.json" || true
+          curl --silent --show-error --location --max-time 30 --output "$RUNNER_TEMP/libhac-query.json" --write-out 'HTTP %{http_code} | content-type %{content_type} | final-url %{url_effective}\\n' "$QUERY_URL" || true
+          head -c 12000 "$RUNNER_TEMP/libhac-query.json" 2>/dev/null || true
           echo
-          echo "=== Package version references ==="
-          grep -Rni 'Ryujinx.LibHac' Directory.Packages.props src --include='*.props' --include='*.csproj' | head -40
 
       - name: Install repository-pinned .NET SDK
         uses: actions/setup-dotnet@v4
