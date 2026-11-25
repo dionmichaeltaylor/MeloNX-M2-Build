@@ -50,6 +50,11 @@ jobs:
           git -C source diff --check
           git -C source diff -- src/Ryujinx.Graphics.Vulkan/PipelineCacheManager.cs | tee diagnostic-source-diff.txt
 
+      - name: Set up pinned .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: source/global.json
+
       - name: Install pinned .NET SDK and iOS workload
         working-directory: source
         shell: bash
@@ -67,8 +72,8 @@ jobs:
           set -euo pipefail
           DOTNET_BIN="$(command -v dotnet)"
           echo "dotnet binary: $DOTNET_BIN"
+          test -x "$DOTNET_BIN"
           echo "$(dirname "$DOTNET_BIN")" >> "$GITHUB_PATH"
-          echo "/usr/local/bin" >> "$GITHUB_PATH"
           xcodebuild -list -project "$IOS_PROJECT"
           xcodebuild -resolvePackageDependencies -project "$IOS_PROJECT"
 
@@ -78,8 +83,9 @@ jobs:
         run: |
           set -euo pipefail
           DOTNET_BIN="$(command -v dotnet)"
-          export PATH="$(dirname "$DOTNET_BIN"):/usr/local/bin:$PATH"
-          export DOTNET_ROOT="$(dirname "$DOTNET_BIN")"
+          test -x "$DOTNET_BIN"
+          export PATH="$(dirname "$DOTNET_BIN"):$PATH"
+          export DOTNET_ROOT="$HOME/.dotnet"
           echo "Build PATH=$PATH"
           command -v dotnet
           dotnet --version
