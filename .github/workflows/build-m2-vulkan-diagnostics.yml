@@ -112,6 +112,22 @@ jobs:
           xcodebuild -list -project "$IOS_PROJECT"
           xcodebuild -resolvePackageDependencies -project "$IOS_PROJECT"
 
+      - name: Audit target bundle settings before archive
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/target-audit"
+          xcodebuild -showBuildSettings -project "$IOS_PROJECT" -target MeloNX -configuration Release > "$RUNNER_TEMP/target-audit/main-settings.txt"
+          xcodebuild -showBuildSettings -project "$IOS_PROJECT" -target MeloNXRamDonor -configuration Release > "$RUNNER_TEMP/target-audit/extension-settings.txt"
+          {
+            echo "MAIN TARGET"
+            grep -E 'PRODUCT_BUNDLE_IDENTIFIER =|INFOPLIST_KEY_CFBundleIdentifier =|PRODUCT_NAME =|CODE_SIGN_ENTITLEMENTS =|GENERATE_INFOPLIST_FILE =|APPLICATION_EXTENSION_API_ONLY =' "$RUNNER_TEMP/target-audit/main-settings.txt" | sort -u
+            echo "EXTENSION TARGET"
+            grep -E 'PRODUCT_BUNDLE_IDENTIFIER =|INFOPLIST_KEY_CFBundleIdentifier =|PRODUCT_NAME =|CODE_SIGN_ENTITLEMENTS =|GENERATE_INFOPLIST_FILE =|APPLICATION_EXTENSION_API_ONLY =' "$RUNNER_TEMP/target-audit/extension-settings.txt" | sort -u
+          } | tee "$RUNNER_TEMP/target-audit/target-bundle-settings.txt"
+          cp "$RUNNER_TEMP/target-audit/target-bundle-settings.txt" "$GITHUB_WORKSPACE/target-bundle-settings.txt"
+
       - name: Archive diagnostic build (no signing)
         working-directory: source
         shell: bash
