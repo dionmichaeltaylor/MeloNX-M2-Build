@@ -79,6 +79,8 @@ jobs:
             -project "$IOS_PROJECT" \
             -scheme MeloNX \
             -configuration Release \
+            -jobs 1 \
+            -parallelizeTargets NO \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MeloNX-2.7-baseline.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
