@@ -87,3 +87,4 @@ index 3aa44a44..d40a85e1 100644
  	uint64_t startTime = getPerformanceTimestamp();
  	bool wasConverted = _spvConverter.convert(*pShaderConfig, conversionResult, shouldLogCode, shouldLogCode, shouldLogEstimatedGLSL);
  	addPerformanceInterval(getPerformanceStats().shaderCompilation.spirvToMSL, startTime);
+
