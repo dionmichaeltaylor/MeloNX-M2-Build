@@ -49,6 +49,14 @@ jobs:
           echo '=== RENDERER CACHE INITIALIZATION / SHUTDOWN ==='
           sed -n '530,590p' source/src/Ryujinx.Graphics.Vulkan/VulkanRenderer.cs
           sed -n '1110,1170p' source/src/Ryujinx.Graphics.Vulkan/VulkanRenderer.cs
+          echo '=== PIPELINE CACHE CAPABILITY IMPLEMENTATION ==='
+          rg -n -C 8 'SupportsPipelineCreationCacheControl|PipelineCreationCacheControl' source/src/Ryujinx.Graphics.Vulkan source/src
+          echo '=== PIPELINE CREATION CONTROL PATH ==='
+          sed -n '1810,1905p' source/src/Ryujinx.Graphics.Vulkan/PipelineBase.cs
+          echo '=== GPU DEVICE / EXTENSION LOGGING ==='
+          rg -n -C 4 'PhysicalDeviceProperties|DriverVersion|DeviceName|IsMoltenVk|EnabledExtension|ExtensionProperties' source/src/Ryujinx.Graphics.Vulkan/VulkanRenderer.cs source/src/Ryujinx.Graphics.Vulkan/VulkanPhysicalDevice.cs
+          echo '=== WORKER QUEUE POLICY ==='
+          rg -n -C 6 'class WorkerQueue|Schedule\(|demanded|highPriority' source/src/Ryujinx.Graphics.Vulkan/WorkerQueue.cs source/src/Ryujinx.Graphics.Vulkan/BackgroundCompilationScheduler.cs
 
       - name: Upload source audit
         uses: actions/upload-artifact@v4
