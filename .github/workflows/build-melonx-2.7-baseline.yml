@@ -31,11 +31,19 @@ jobs:
           cd source
           git checkout 13700519f3abc4e6d7ed8a065b118b2cc59bcd67
           git submodule update --init --recursive
-          git lfs install
-          git lfs pull
           test "$(git rev-parse HEAD)" = "13700519f3abc4e6d7ed8a065b118b2cc59bcd67"
-          test -d src/MeloNX/MeloNX.xcodeproj
-          test -f distribution/ios/xc-compile.sh
+          echo "=== Source root ==="
+          ls -la
+          echo "=== Xcode projects ==="
+          find src distribution -name '*.xcodeproj' -o -name '*.xcworkspace' 2>/dev/null | tee ../apple-projects.txt
+          echo "=== iOS build scripts ==="
+          find distribution -maxdepth 5 -type f 2>/dev/null | sort | tee ../distribution-files.txt
+          PROJECT="$(find src distribution -name 'MeloNX.xcodeproj' -print -quit)"
+          if [ -z "$PROJECT" ]; then
+            PROJECT="$(find src distribution -name '*.xcodeproj' -print -quit)"
+          fi
+          test -n "$PROJECT"
+          echo "IOS_PROJECT=$PROJECT" >> "$GITHUB_ENV"
           git rev-parse HEAD | tee ../source-commit.txt
           cat global.json
 
@@ -59,7 +67,8 @@ jobs:
       - name: Resolve Xcode packages
         working-directory: source
         run: |
-          xcodebuild -resolvePackageDependencies -project src/MeloNX/MeloNX.xcodeproj -scheme MeloNX
+          xcodebuild -list -project "$IOS_PROJECT"
+          xcodebuild -resolvePackageDependencies -project "$IOS_PROJECT"
 
       - name: Archive untouched 2.7 source
         working-directory: source
@@ -67,7 +76,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild archive \
-            -project src/MeloNX/MeloNX.xcodeproj \
+            -project "$IOS_PROJECT" \
             -scheme MeloNX \
             -configuration Release \
             -destination 'generic/platform=iOS' \
@@ -101,5 +110,7 @@ jobs:
             binary-fingerprints.txt
             source-commit.txt
             melonx-2.7-xcodebuild.log
+            apple-projects.txt
+            distribution-files.txt
           if-no-files-found: error
           retention-days: 30
