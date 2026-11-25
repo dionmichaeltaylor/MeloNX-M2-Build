@@ -1,0 +1,89 @@
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+index 47bbd4fc..727c312a 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKPipeline.mm
+@@ -2504,10 +2504,30 @@ MVKShaderLibrary* MVKPipelineCache::getShaderLibrary(SPIRVToMSLConversionConfigu
+ 													 uint64_t startTime) {
+ 	if (_isExternallySynchronized) {
+ 		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
+-	} else {
++	}
++
++	// Only hold the cache-wide lock while finding the cache for this shader module. Converting and
++	// compiling a shader under it would serialize pipeline creation for all shader modules on all threads.
++	MVKShaderLibraryCache* slCache;
++	{
+ 		lock_guard<mutex> lock(_shaderCacheLock);
+-		return getShaderLibraryImpl(pContext, shaderModule, pipeline, pShaderFeedback, startTime);
++		slCache = getShaderLibraryCache(shaderModule->getKey());
+ 	}
++
++	bool wasAdded = false;
++	MVKShaderLibrary* shLib;
++	{
++		lock_guard<mutex> slLock(slCache->_librariesLock);
++		shLib = slCache->getShaderLibrary(pContext, shaderModule, pipeline, &wasAdded, pShaderFeedback, startTime);
++	}
++
++	if (wasAdded) {
++		lock_guard<mutex> lock(_shaderCacheLock);
++		markDirty();
++	} else if (pShaderFeedback) {
++		mvkEnableFlags(pShaderFeedback->flags, VK_PIPELINE_CREATION_FEEDBACK_APPLICATION_PIPELINE_CACHE_HIT_BIT);
++	}
++	return shLib;
+ }
+ 
+ MVKShaderLibrary* MVKPipelineCache::getShaderLibraryImpl(SPIRVToMSLConversionConfiguration* pContext,
+@@ -2641,6 +2661,7 @@ void MVKPipelineCache::writeData(ostream& outstream, bool isCounting) {
+ 	cacheEntryType = MVKPipelineCacheEntryTypeShaderLibrary;
+ 	for (auto& scPair : _shaderCache) {
+ 		MVKShaderModuleKey smKey = scPair.first;
++		lock_guard<mutex> slLock(scPair.second->_librariesLock);
+ 		MVKShaderCacheIterator cacheIter(scPair.second);
+ 		while (cacheIter.next()) {
+ 			uint64_t startTime = getPerformanceTimestamp();
+@@ -2757,7 +2778,10 @@ VkResult MVKPipelineCache::mergePipelineCachesImpl(uint32_t srcCacheCount, const
+ 	for (uint32_t srcIdx = 0; srcIdx < srcCacheCount; srcIdx++) {
+ 		MVKPipelineCache* srcPLC = (MVKPipelineCache*)pSrcCaches[srcIdx];
+ 		for (auto& srcPair : srcPLC->_shaderCache) {
+-			getShaderLibraryCache(srcPair.first)->merge(srcPair.second);
++			MVKShaderLibraryCache* dstSLCache = getShaderLibraryCache(srcPair.first);
++			if (dstSLCache == srcPair.second) { continue; }
++			scoped_lock slLocks(dstSLCache->_librariesLock, srcPair.second->_librariesLock);
++			dstSLCache->merge(srcPair.second);
+ 		}
+ 	}
+ 	markDirty();
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+index c5b74991..a30d647d 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.h
+@@ -208,6 +208,7 @@ protected:
+ 
+ 	MVKVulkanAPIDeviceObject* _owner;
+ 	MVKSmallVector<std::pair<mvk::SPIRVToMSLConversionConfiguration, MVKShaderLibrary*>> _shaderLibraries;
++	std::mutex _librariesLock;		// Used by MVKPipelineCache, which shares this cache between threads
+ };
+ 
+ 
+@@ -277,6 +278,7 @@ protected:
+ 
+ 	MVKShaderLibraryCache _shaderLibraryCache;
+ 	mvk::SPIRVToMSLConverter _spvConverter;
++	std::mutex _conversionLock;		// _spvConverter can be used from several pipeline caches and threads at once
+ 	MVKShaderLibrary* _directMSLLibrary;
+ 	MVKShaderModuleKey _key;
+     std::mutex _accessLock;
+diff --git a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+index 3aa44a44..d40a85e1 100644
+--- a/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
++++ b/MoltenVK/MoltenVK/GPUObjects/MVKShaderModule.mm
+@@ -421,6 +421,7 @@ bool MVKShaderModule::convert(SPIRVToMSLConversionConfiguration* pShaderConfig,
+ 	bool shouldLogCode = mvkCfg.debugMode;
+ 	bool shouldLogEstimatedGLSL = shouldLogCode && mvkCfg.shaderLogEstimatedGLSL;
+ 
++	lock_guard<mutex> lock(_conversionLock);
+ 	uint64_t startTime = getPerformanceTimestamp();
+ 	bool wasConverted = _spvConverter.convert(*pShaderConfig, conversionResult, shouldLogCode, shouldLogCode, shouldLogEstimatedGLSL);
+ 	addPerformanceInterval(getPerformanceStats().shaderCompilation.spirvToMSL, startTime);
