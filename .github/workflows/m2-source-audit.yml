@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/m2-source-audit.yml'
       - 'scripts/audit-pipeline-cache.sh'
+      - 'docs/M2-PIPELINE-AUDIT-2026-11-25.md'
 
 permissions:
   contents: read
@@ -56,7 +57,7 @@ jobs:
           echo '=== GPU DEVICE / EXTENSION LOGGING ==='
           rg -n -C 4 'PhysicalDeviceProperties|DriverVersion|DeviceName|IsMoltenVk|EnabledExtension|ExtensionProperties' source/src/Ryujinx.Graphics.Vulkan/VulkanRenderer.cs source/src/Ryujinx.Graphics.Vulkan/VulkanPhysicalDevice.cs
           echo '=== WORKER QUEUE POLICY ==='
-          rg -n -C 6 'class WorkerQueue|Schedule\(|demanded|highPriority' source/src/Ryujinx.Graphics.Vulkan/WorkerQueue.cs source/src/Ryujinx.Graphics.Vulkan/BackgroundCompilationScheduler.cs
+          rg -n -C 8 'class WorkerQueue|Schedule\(|demanded|highPriority|TryTake\(|Enqueue\(' source/src/Ryujinx.Graphics.Vulkan/BackgroundCompilationScheduler.cs
 
       - name: Upload source audit
         uses: actions/upload-artifact@v4
