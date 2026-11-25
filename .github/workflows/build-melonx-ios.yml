@@ -45,12 +45,10 @@ jobs:
         run: |
           echo "DOTNET_ROOT=$DOTNET_ROOT" >> "$GITHUB_ENV"
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
+          # The upstream Xcode legacy build script probes /usr/local/bin.
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$(command -v dotnet)" /usr/local/bin/dotnet
           dotnet --info
-
-      - name: Install iOS .NET workload
-        run: |
-          dotnet workload install ios
-          dotnet workload list
 
       - name: Fetch MeloNX source
         env:
@@ -63,7 +61,14 @@ jobs:
           git rev-parse HEAD | tee ../source-commit.txt
           test -d src/MeloNX/MeloNX.xcodeproj
           test -f distribution/ios/xc-compile.sh
-          test -f src/Ryujinx.Headless.SDL2
+          test -d src/Ryujinx.Headless.SDL2
+
+      - name: Install iOS .NET workload using repository SDK pin
+        working-directory: source
+        run: |
+          dotnet --version
+          dotnet workload install ios
+          dotnet workload list
 
       - name: Resolve Swift packages
         working-directory: source
