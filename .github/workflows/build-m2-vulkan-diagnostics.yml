@@ -175,6 +175,10 @@ jobs:
             codesign -d --entitlements :- "$EXT" 2>&1 || true
             echo "EMBEDDED_FRAMEWORKS:"
             find "$APP/Frameworks" -maxdepth 1 -mindepth 1 -type d -print 2>/dev/null | sort || true
+            echo "MOLTENVK_REFERENCES:"
+            APP_EXEC=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")
+            otool -L "$APP/$APP_EXEC" | grep -i molten || true
+            find "$APP" -iname "*moltenvk*" -print 2>/dev/null | while IFS= read -r f; do shasum -a 256 "$f"; done
           } | tee build-diagnostics/archive-bundle-audit.txt
 
       - name: Preserve archived app for packaging audit
