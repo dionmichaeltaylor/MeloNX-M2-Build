@@ -1,0 +1,48 @@
+name: M2 source pipeline audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [m2-optimization-roadmap]
+    paths:
+      - '.github/workflows/m2-source-audit.yml'
+      - 'scripts/audit-pipeline-cache.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out M2 build kit
+        uses: actions/checkout@v4
+
+      - name: Check out pinned MeloNX source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/AzureDominus/melonx.git source
+          cd source
+          git checkout 13700519f3abc4e6d7ed8a065b118b2cc59bcd67
+          test "$(git rev-parse HEAD)" = "13700519f3abc4e6d7ed8a065b118b2cc59bcd67"
+          git rev-parse HEAD > ../source-commit.txt
+          git status --short > ../source-status.txt
+
+      - name: Run source pipeline-cache inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/audit-pipeline-cache.sh source m2-pipeline-audit
+
+      - name: Upload source audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeloNX-M2-source-pipeline-audit
+          path: |
+            m2-pipeline-audit/
+            source-commit.txt
+            source-status.txt
+          if-no-files-found: error
+          retention-days: 30
