@@ -2,6 +2,8 @@ name: Build MeloNX 2.7 baseline (official source)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
