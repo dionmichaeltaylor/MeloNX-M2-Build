@@ -19,6 +19,9 @@ jobs:
       - name: Check out M2 build kit
         uses: actions/checkout@v4
 
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - name: Check out pinned MeloNX source snapshot
         shell: bash
         run: |
