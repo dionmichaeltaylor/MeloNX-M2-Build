@@ -1,0 +1,103 @@
+name: Build M2 Vulkan diagnostics (compile validation)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [m2-optimization-roadmap]
+    paths:
+      - 'scripts/apply-m2-vulkan-diagnostics.py'
+      - '.github/workflows/build-m2-vulkan-diagnostics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: xcode-27
+    timeout-minutes: 180
+    steps:
+      - name: Check out M2 build kit
+        uses: actions/checkout@v4
+
+      - name: Verify Apple build host
+        run: |
+          sw_vers
+          xcodebuild -version
+          uname -m
+
+      - name: Clone pinned official MeloNX source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://starforgejo.dev/projects/MeloNX.git source
+          cd source
+          git checkout 13700519f3abc4e6d7ed8a065b118b2cc59bcd67
+          git submodule update --init --recursive
+          test "$(git rev-parse HEAD)" = "13700519f3abc4e6d7ed8a065b118b2cc59bcd67"
+          git rev-parse HEAD > ../source-commit.txt
+          find src distribution -name '*.xcodeproj' -o -name '*.xcworkspace' 2>/dev/null | tee ../apple-projects.txt
+          PROJECT="$(find src distribution -name 'MeloNX.xcodeproj' -print -quit)"
+          if [ -z "$PROJECT" ]; then PROJECT="$(find src distribution -name '*.xcodeproj' -print -quit)"; fi
+          test -n "$PROJECT"
+          echo "IOS_PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          cat global.json
+
+      - name: Apply diagnostic-only source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/apply-m2-vulkan-diagnostics.py
+          git -C source diff --check
+          git -C source diff -- src/Ryujinx.Graphics.Vulkan/PipelineCacheManager.cs | tee diagnostic-source-diff.txt
+
+      - name: Install pinned .NET SDK and iOS workload
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --info
+          dotnet workload install ios
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$(command -v dotnet)" /usr/local/bin/dotnet
+
+      - name: Resolve Xcode packages
+        working-directory: source
+        run: |
+          xcodebuild -list -project "$IOS_PROJECT"
+          xcodebuild -resolvePackageDependencies -project "$IOS_PROJECT"
+
+      - name: Archive diagnostic build (no signing)
+        working-directory: source
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project "$IOS_PROJECT" \
+            -scheme MeloNX \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/MeloNX-M2-diagnostics.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            2>&1 | tee "$RUNNER_TEMP/melonx-m2-diagnostics-xcodebuild.log"
+
+      - name: Preserve build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build-diagnostics
+          cp "$RUNNER_TEMP/melonx-m2-diagnostics-xcodebuild.log" build-diagnostics/ 2>/dev/null || true
+          cp diagnostic-source-diff.txt build-diagnostics/ 2>/dev/null || true
+          cp source-commit.txt build-diagnostics/ 2>/dev/null || true
+          cp apple-projects.txt build-diagnostics/ 2>/dev/null || true
+
+      - name: Upload compile validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeloNX-M2-diagnostics-compile-validation
+          path: build-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 30
