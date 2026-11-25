@@ -14,13 +14,11 @@ on:
         default: XC-ios-ht
         type: string
       runner:
-        description: macOS/Xcode runner (xlarge is faster, may cost more)
+        description: macOS/Xcode runner
         required: true
         default: xcode-27
         type: choice
-        options:
-          - xcode-27
-          - xcode-27-xlarge
+        options: [xcode-27, xcode-27-xlarge]
 
 permissions:
   contents: read
@@ -70,25 +68,14 @@ jobs:
       - name: Resolve Swift packages
         working-directory: source
         run: |
-          xcodebuild -resolvePackageDependencies \
-            -project src/MeloNX/MeloNX.xcodeproj \
-            -scheme MeloNX
+          xcodebuild -resolvePackageDependencies -project src/MeloNX/MeloNX.xcodeproj -scheme MeloNX
 
       - name: Build unsigned iOS app
         working-directory: source
         shell: bash
         run: |
           set -o pipefail
-          xcodebuild \
-            -project src/MeloNX/MeloNX.xcodeproj \
-            -scheme MeloNX \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath "$RUNNER_TEMP/MeloNX-DerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            build 2>&1 | tee "$RUNNER_TEMP/melonx-xcodebuild.log"
+          xcodebuild -project src/MeloNX/MeloNX.xcodeproj -scheme MeloNX -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/MeloNX-DerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee "$RUNNER_TEMP/melonx-xcodebuild.log"
 
       - name: Package unsigned IPA
         working-directory: source

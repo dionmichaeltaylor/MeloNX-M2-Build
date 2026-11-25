@@ -1,0 +1,19 @@
+{
+  "kit": "MeloNX M2 Build Kit",
+  "kit_version": "0.2",
+  "source_default": "AzureDominus/melonx",
+  "source_ref_default": "XC-ios-ht",
+  "xcode_runner_default": "xcode-27",
+  "dotnet_sdk": "8.0.x",
+  "xcode_project": "src/MeloNX/MeloNX.xcodeproj",
+  "xcode_scheme": "MeloNX",
+  "configuration": "Release",
+  "sdk": "iphoneos",
+  "destination": "generic/platform=iOS",
+  "signing": "disabled; unsigned IPA output",
+  "note": "Build pipeline only; no performance patches applied.",
+  "cautions": [
+    "Mirror/fork provenance must be verified against the intended MeloNX release.",
+    "No successful macOS workflow run has validated this build yet."
+  ]
+}
