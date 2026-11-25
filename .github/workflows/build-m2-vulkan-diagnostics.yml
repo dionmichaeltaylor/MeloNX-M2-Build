@@ -25,22 +25,30 @@ jobs:
           xcodebuild -version
           uname -m
 
-      - name: Clone pinned official MeloNX source
+      - name: Download and verify pinned MeloNX source snapshot
         shell: bash
         run: |
           set -euo pipefail
-          git clone --filter=blob:none https://starforgejo.dev/projects/MeloNX.git source
-          cd source
-          git checkout 13700519f3abc4e6d7ed8a065b118b2cc59bcd67
-          git submodule update --init --recursive
-          test "$(git rev-parse HEAD)" = "13700519f3abc4e6d7ed8a065b118b2cc59bcd67"
-          git rev-parse HEAD > ../source-commit.txt
-          find src distribution -name '*.xcodeproj' -o -name '*.xcworkspace' 2>/dev/null | tee ../apple-projects.txt
-          PROJECT="$(find src distribution -name 'MeloNX.xcodeproj' -print -quit)"
-          if [ -z "$PROJECT" ]; then PROJECT="$(find src distribution -name '*.xcodeproj' -print -quit)"; fi
+          mkdir -p source-archive
+          curl -fL --retry 3 --retry-delay 2 \
+            "https://github.com/RipeStore/Melons/releases/download/2026.10.11/MeloNX-2026.10.11.7z" \
+            -o source-archive/MeloNX-2026.10.11.7z
+          echo "ffd1d09402bb9e0ca27c872fe4f70ccefeedeb5c3a9882780fb9978729e8f951  source-archive/MeloNX-2026.10.11.7z" | shasum -a 256 -c -
+          if ! command -v 7zz >/dev/null 2>&1; then
+            brew install sevenzip
+          fi
+          7zz x source-archive/MeloNX-2026.10.11.7z -osource-archive/extracted
+          SOURCE_DIR="$(find source-archive/extracted -type f -name global.json -print -quit | xargs dirname)"
+          test -n "$SOURCE_DIR"
+          mv "$SOURCE_DIR" source
+          test -f source/global.json
+          echo "13700519f3abc4e6d7ed8a065b118b2cc59bcd67" > source-commit.txt
+          find source -name '*.xcodeproj' -o -name '*.xcworkspace' 2>/dev/null | tee apple-projects.txt
+          PROJECT="$(find source -name 'MeloNX.xcodeproj' -print -quit)"
+          if [ -z "$PROJECT" ]; then PROJECT="$(find source -name '*.xcodeproj' -print -quit)"; fi
           test -n "$PROJECT"
           echo "IOS_PROJECT=$PROJECT" >> "$GITHUB_ENV"
-          cat global.json
+          cat source/global.json
 
       - name: Apply diagnostic-only source patch
         shell: bash
