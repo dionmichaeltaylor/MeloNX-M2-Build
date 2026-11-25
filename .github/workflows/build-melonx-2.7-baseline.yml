@@ -79,8 +79,6 @@ jobs:
             -project "$IOS_PROJECT" \
             -scheme MeloNX \
             -configuration Release \
-            -jobs 1 \
-            -parallelizeTargets NO \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MeloNX-2.7-baseline.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
@@ -88,6 +86,30 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             2>&1 | tee "$RUNNER_TEMP/melonx-2.7-xcodebuild.log"
+
+      - name: Preserve build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p "$GITHUB_WORKSPACE/build-diagnostics"
+          if [ -f "$RUNNER_TEMP/melonx-2.7-xcodebuild.log" ]; then
+            cp "$RUNNER_TEMP/melonx-2.7-xcodebuild.log" "$GITHUB_WORKSPACE/build-diagnostics/"
+          fi
+          if [ -d "$RUNNER_TEMP/MeloNX-2.7-baseline.xcarchive" ]; then
+            echo "Archive directory exists" > "$GITHUB_WORKSPACE/build-diagnostics/archive-status.txt"
+          else
+            echo "Archive directory was not created" > "$GITHUB_WORKSPACE/build-diagnostics/archive-status.txt"
+          fi
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeloNX-2.7-build-diagnostics
+          path: build-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Package IPA and capture binary fingerprints
         shell: bash
