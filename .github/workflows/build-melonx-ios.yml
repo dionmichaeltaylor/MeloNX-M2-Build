@@ -1,0 +1,120 @@
+name: Build MeloNX iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: Public MeloNX source repository
+        required: true
+        default: AzureDominus/melonx
+        type: string
+      source_ref:
+        description: Branch, tag, or commit to build
+        required: true
+        default: XC-ios-ht
+        type: string
+      runner:
+        description: macOS/Xcode runner (xlarge is faster, may cost more)
+        required: true
+        default: xcode-27
+        type: choice
+        options:
+          - xcode-27
+          - xcode-27-xlarge
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 120
+    steps:
+      - name: Show build host
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+          uname -m
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Export .NET SDK paths
+        shell: bash
+        run: |
+          echo "DOTNET_ROOT=$DOTNET_ROOT" >> "$GITHUB_ENV"
+          echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
+          dotnet --info
+
+      - name: Install iOS .NET workload
+        run: |
+          dotnet workload install ios
+          dotnet workload list
+
+      - name: Fetch MeloNX source
+        env:
+          SOURCE_REPO: ${{ inputs.source_repo }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$SOURCE_REF" "https://github.com/$SOURCE_REPO.git" source
+          cd source
+          git rev-parse HEAD | tee ../source-commit.txt
+          test -d src/MeloNX/MeloNX.xcodeproj
+          test -f distribution/ios/xc-compile.sh
+          test -f src/Ryujinx.Headless.SDL2
+
+      - name: Resolve Swift packages
+        working-directory: source
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project src/MeloNX/MeloNX.xcodeproj \
+            -scheme MeloNX
+
+      - name: Build unsigned iOS app
+        working-directory: source
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project src/MeloNX/MeloNX.xcodeproj \
+            -scheme MeloNX \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/MeloNX-DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/melonx-xcodebuild.log"
+
+      - name: Package unsigned IPA
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MeloNX-DerivedData/Build/Products/Release-iphoneos/MeloNX.app"
+          test -d "$APP"
+          rm -rf "$RUNNER_TEMP/ipa-root"
+          mkdir -p "$RUNNER_TEMP/ipa-root/Payload"
+          ditto "$APP" "$RUNNER_TEMP/ipa-root/Payload/MeloNX.app"
+          cd "$RUNNER_TEMP/ipa-root"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/MeloNX-unsigned.ipa" Payload
+          cd "$GITHUB_WORKSPACE"
+          shasum -a 256 MeloNX-unsigned.ipa | tee MeloNX-unsigned.ipa.sha256
+          ditto "$RUNNER_TEMP/melonx-xcodebuild.log" "$GITHUB_WORKSPACE/melonx-xcodebuild.log"
+          test -s "$GITHUB_WORKSPACE/source-commit.txt"
+
+      - name: Upload IPA and build diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeloNX-iOS-unsigned-${{ inputs.source_ref }}
+          path: |
+            MeloNX-unsigned.ipa
+            MeloNX-unsigned.ipa.sha256
+            melonx-xcodebuild.log
+            source-commit.txt
+          if-no-files-found: error
+          retention-days: 14
