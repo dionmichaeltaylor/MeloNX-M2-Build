@@ -37,14 +37,17 @@ jobs:
           git rev-parse HEAD | tee ../source-commit.txt
           cat global.json
 
-      - name: Install pinned .NET SDK and iOS workload
+      - name: Install repository-pinned .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: source/global.json
+
+      - name: Install iOS workload
         working-directory: source
         shell: bash
         run: |
           set -euo pipefail
-          SDK_VERSION="$(python3 -c 'import json; print(json.load(open("global.json"))["sdk"]["version"])')"
-          dotnet_version="$SDK_VERSION"
-          echo "Pinned SDK: $dotnet_version"
+          echo "Using repository-pinned SDK: $(dotnet --version)"
           dotnet --info
           dotnet workload install ios
           dotnet workload list
