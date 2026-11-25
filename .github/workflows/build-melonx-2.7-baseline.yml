@@ -1,0 +1,100 @@
+name: Build MeloNX 2.7 baseline (official source)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: xcode-27
+    timeout-minutes: 180
+    steps:
+      - name: Check out build harness
+        uses: actions/checkout@v4
+
+      - name: Verify Apple build host
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+          uname -m
+
+      - name: Clone official MeloNX 2.7 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://starforgejo.dev/projects/MeloNX.git source
+          cd source
+          git checkout 13700519f3abc4e6d7ed8a065b118b2cc59bcd67
+          git submodule update --init --recursive
+          git lfs install
+          git lfs pull
+          test "$(git rev-parse HEAD)" = "13700519f3abc4e6d7ed8a065b118b2cc59bcd67"
+          test -d src/MeloNX/MeloNX.xcodeproj
+          test -f distribution/ios/xc-compile.sh
+          git rev-parse HEAD | tee ../source-commit.txt
+          cat global.json
+
+      - name: Install pinned .NET SDK and iOS workload
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_VERSION="$(python3 -c 'import json; print(json.load(open("global.json"))["sdk"]["version"])')"
+          dotnet_version="$SDK_VERSION"
+          echo "Pinned SDK: $dotnet_version"
+          dotnet --info
+          dotnet workload install ios
+          dotnet workload list
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$(command -v dotnet)" /usr/local/bin/dotnet
+
+      - name: Resolve Xcode packages
+        working-directory: source
+        run: |
+          xcodebuild -resolvePackageDependencies -project src/MeloNX/MeloNX.xcodeproj -scheme MeloNX
+
+      - name: Archive untouched 2.7 source
+        working-directory: source
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project src/MeloNX/MeloNX.xcodeproj \
+            -scheme MeloNX \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/MeloNX-2.7-baseline.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            2>&1 | tee "$RUNNER_TEMP/melonx-2.7-xcodebuild.log"
+
+      - name: Package IPA and capture binary fingerprints
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/MeloNX-2.7-baseline.xcarchive/Products/Applications/MeloNX.app"
+          test -d "$APP"
+          mkdir -p "$RUNNER_TEMP/ipa-root/Payload"
+          ditto "$APP" "$RUNNER_TEMP/ipa-root/Payload/MeloNX.app"
+          (cd "$RUNNER_TEMP/ipa-root" && /usr/bin/zip -qry "$GITHUB_WORKSPACE/MeloNX-2.7-baseline-unsigned.ipa" Payload)
+          shasum -a 256 "$GITHUB_WORKSPACE/MeloNX-2.7-baseline-unsigned.ipa" > "$GITHUB_WORKSPACE/MeloNX-2.7-baseline-unsigned.ipa.sha256"
+          find "$APP" -type f \( -name MeloNX -o -name Ryujinx.Library.dylib -o -name BreakpointJIT -o -name MeloNXRamDonor \) -exec shasum -a 256 {} \; > "$GITHUB_WORKSPACE/binary-fingerprints.txt"
+          ditto "$RUNNER_TEMP/melonx-2.7-xcodebuild.log" "$GITHUB_WORKSPACE/melonx-2.7-xcodebuild.log"
+
+      - name: Upload baseline and build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeloNX-2.7-official-source-baseline
+          path: |
+            MeloNX-2.7-baseline-unsigned.ipa
+            MeloNX-2.7-baseline-unsigned.ipa.sha256
+            binary-fingerprints.txt
+            source-commit.txt
+            melonx-2.7-xcodebuild.log
+          if-no-files-found: error
+          retention-days: 30
