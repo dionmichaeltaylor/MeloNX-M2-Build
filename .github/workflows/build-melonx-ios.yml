@@ -63,6 +63,13 @@ jobs:
           test -f distribution/ios/xc-compile.sh
           test -d src/Ryujinx.Headless.SDL2
 
+      - name: Apply staged startup diagnostics
+        working-directory: source
+        run: |
+          python3 ../scripts/apply-startup-diagnostics.py
+          git diff --check
+          git diff -- src/MeloNX/MeloNX/App/UI/MeloNXApp.swift
+
       - name: Install iOS .NET workload using repository SDK pin
         working-directory: source
         run: |
